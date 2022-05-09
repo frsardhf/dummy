@@ -1,0 +1,65 @@
+stages:
+  - test
+  - build
+  - deploy
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+
+code_quality:
+  stage: test
+  artifacts:
+    paths: [gl-code-quality-report.json]
+    
+test and coverage:
+  stage: test
+  image: node:15
+  script:
+    - npm install
+    - npm test -- --coverage --watchAll=false --detectOpenHandles --forceExit
+  artifacts:
+    paths:
+      - coverage/lcov.info
+
+build project:
+  stage: build
+  image: node:15
+  script:
+    - unset CI
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - build/
+
+
+netlify dev:
+  rules:
+# Kalo pas di merge error inget tambahin condition buat merge disini (https://docs.gitlab.com/ee/ci/yaml/#rules)
+    - if: '$CI_COMMIT_REF_NAME == "dev"'
+  stage: deploy
+  environment: 
+    name: development
+    url: https://$DEV_NETLIFY_APP_NAME.netlify.app
+  image: node:16
+  script:
+    - npm install -g netlify-cli
+    - netlify deploy --site $DEV_NETLIFY_SITE_ID --auth $DEV_NETLIFY_AUTH_TOKEN --dir build/ --prod
+  dependencies:
+    - build project
+
+netlify prod:
+  rules:
+# Kalo pas di merge error inget tambahin condition buat merge disini (https://docs.gitlab.com/ee/ci/yaml/#rules)
+    - if: '$CI_COMMIT_REF_NAME == "prod"'
+  stage: deploy
+  environment:
+    name: production
+    url: https://$PROD_NETLIFY_APP_NAME.netlify.app
+  image: node:16
+  script:
+    - npm install -g netlify-cli
+    - netlify deploy --site $PROD_NETLIFY_SITE_ID --auth $PROD_NETLIFY_AUTH_TOKEN --dir build/ --prod
+  dependencies:
+    - build project
+
